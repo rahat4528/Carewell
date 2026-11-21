@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  carewell-pharmacy-postgres:
+    image: postgres:16-alpine
+    container_name: carewell-pharmacy-postgres
+    environment:
+      POSTGRES_USER: pharmacy_user
+      POSTGRES_PASSWORD: pharmacy_secure_pass
+      POSTGRES_DB: carewell_pharmacy_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - pharmacy-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharmacy_user -d carewell_pharmacy_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  carewell-pharmacy-redis:
+    image: redis:7-alpine
+    container_name: carewell-pharmacy-redis
+    ports:
+      - "6384:6379"
+    volumes:
+      - pharmacy-redisdata:/data
+
+volumes:
+  pharmacy-pgdata:
+  pharmacy-redisdata:

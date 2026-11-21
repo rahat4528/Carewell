@@ -1,0 +1,187 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    @default("PHARMACY_TECH") // "PHARMACIST", "PHARMACY_TECH", "ADMIN", "PATIENT"
+  licenseNumber String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Medication {
+  id                   String             @id @default(uuid())
+  ndc                  String             @unique
+  brandName            String
+  genericName          String
+  dosageForm           String             // e.g. "Tablet", "Capsule", "Oral Liquid", "Inhaler"
+  strength             String             // e.g. "10mg", "500mg/5mL"
+  packageSize          Int                @default(100)
+  deaSchedule          String             @default("NON_CONTROLLED") // "SCHEDULE_II", "SCHEDULE_III", "SCHEDULE_IV", "SCHEDULE_V", "NON_CONTROLLED"
+  unitPriceCents       Int                // Minor currency units (cents)
+  costPriceCents       Int                // Minor currency units (cents)
+  reorderLevel         Int                @default(50)
+  requiresPrescription Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  batches              MedicationBatch[]
+  movements            InventoryMovement[]
+  prescriptionItems    PrescriptionItem[]
+  posItems             PosSaleItem[]
+}
+
+model MedicationBatch {
+  id                String              @id @default(uuid())
+  medicationId      String
+  lotNumber         String
+  expiryDate        DateTime
+  initialQty        Int
+  currentQty        Int
+  costPriceCents    Int
+  sellingPriceCents Int
+  isQuarantined     Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  medication        Medication          @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  movements         InventoryMovement[]
+  allocations       DispenseAllocation[]
+  posItems          PosSaleItem[]
+
+  @@index([medicationId, expiryDate])
+}
+
+model InventoryMovement {
+  id               String       @id @default(uuid())
+  batchId          String
+  medicationId     String
+  movementType     String       // "RECEIPT", "DISPENSE", "POS_SALE", "ADJUSTMENT", "RETURN", "QUARANTINE"
+  quantityChange   Int          // Positive for receipts, negative for dispensings/sales
+  previousQuantity Int
+  newQuantity      Int
+  referenceType    String       // "PRESCRIPTION", "POS_SALE", "PO_RECEIPT", "QUARANTINE_SWEEP"
+  referenceId      String
+  actorId          String
+  notes            String?
+  createdAt        DateTime     @default(now())
+
+  batch            MedicationBatch @relation(fields: [batchId], references: [id])
+  medication       Medication      @relation(fields: [medicationId], references: [id])
+
+  @@index([medicationId, createdAt])
+}
+
+model Prescription {
+  id               String              @id @default(uuid())
+  rxNumber         String              @unique
+  patientName      String
+  patientDob       String
+  patientIdHash    String
+  prescriberName   String
+  prescriberNpi    String
+  prescriberDea    String?
+  status           String              @default("PENDING_REVIEW") // "PENDING_REVIEW", "PHARMACIST_APPROVED", "DISPENSED", "REJECTED", "CANCELLED"
+  reviewedById     String?
+  reviewedAt       DateTime?
+  dispensedById    String?
+  dispensedAt      DateTime?
+  instructions     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  items            PrescriptionItem[]
+  controlledLog    ControlledSubstanceLog?
+}
+
+model PrescriptionItem {
+  id                 String               @id @default(uuid())
+  prescriptionId     String
+  medicationId       String
+  quantityPrescribed Int
+  quantityDispensed  Int                  @default(0)
+  refillsRemaining   Int                  @default(0)
+  status             String               @default("PENDING")
+
+  prescription       Prescription         @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medication         Medication           @relation(fields: [medicationId], references: [id])
+  allocations        DispenseAllocation[]
+}
+
+model DispenseAllocation {
+  id                 String           @id @default(uuid())
+  prescriptionItemId String
+  batchId            String
+  allocatedQty       Int
+  createdAt          DateTime         @default(now())
+
+  prescriptionItem   PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  batch              MedicationBatch  @relation(fields: [batchId], references: [id])
+}
+
+model ControlledSubstanceLog {
+  id                          String       @id @default(uuid())
+  prescriptionId              String       @unique
+  medicationId                String
+  schedule                    String       // "SCHEDULE_II", "SCHEDULE_III", "SCHEDULE_IV", "SCHEDULE_V"
+  patientPhotoIdType          String       // e.g. "DRIVERS_LICENSE", "PASSPORT"
+  patientPhotoIdNumberHash    String
+  prescriberDea               String
+  prescriberNpi               String
+  dispensingPharmacistId      String
+  dispensingPharmacistLicense String
+  quantityDispensed           Int
+  priorBalance                Int
+  newBalance                  Int
+  createdAt                   DateTime     @default(now())
+
+  prescription                Prescription @relation(fields: [prescriptionId], references: [id])
+}
+
+model PosSale {
+  id            String        @id @default(uuid())
+  saleNumber    String        @unique
+  cashierId     String
+  subtotalCents Int
+  taxCents      Int
+  totalCents    Int
+  paymentMethod String        @default("CASH") // "CASH", "CREDIT_CARD", "INSURANCE_SPLIT"
+  createdAt     DateTime      @default(now())
+
+  items         PosSaleItem[]
+}
+
+model PosSaleItem {
+  id              String          @id @default(uuid())
+  posSaleId       String
+  medicationId    String
+  batchId         String
+  quantity        Int
+  unitPriceCents  Int
+  totalPriceCents Int
+
+  posSale         PosSale         @relation(fields: [posSaleId], references: [id], onDelete: Cascade)
+  medication      Medication      @relation(fields: [medicationId], references: [id])
+  batch           MedicationBatch @relation(fields: [batchId], references: [id])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  action       String
+  entityType   String
+  entityId     String
+  actorId      String
+  detailsJson  String
+  previousHash String
+  currentHash  String
+  createdAt    DateTime @default(now())
+}
