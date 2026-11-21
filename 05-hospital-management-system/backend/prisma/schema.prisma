@@ -1,0 +1,184 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    @default("DOCTOR") // "DOCTOR", "NURSE", "PATHOLOGIST", "LAB_TECH", "ADMIN"
+  department    String?   // e.g. "Cardiology", "ICU", "Pathology", "General Surgery"
+  licenseNumber String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Patient {
+  id                    String      @id @default(uuid())
+  mrn                   String      @unique // Format: MRN-XXXXX-C (Luhn verified)
+  fullName              String
+  dateOfBirth           String      // YYYY-MM-DD
+  gender                String
+  bloodType             String?     // A+, O+, B-, etc.
+  phone                 String?
+  email                 String?
+  allergiesJson         String      @default("[]") // Array of { allergen, severity, reaction }
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  encounters            Encounter[]
+}
+
+model Ward {
+  id             String      @id @default(uuid())
+  name           String      @unique
+  specialty      String      @default("GENERAL_MEDICINE") // "ICU", "GENERAL_MEDICINE", "SURGICAL", "PEDIATRIC", "MATERNITY"
+  floor          Int         @default(1)
+  dailyRateCents Int         // e.g. 250000 = $2500.00/day for ICU
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  beds           Bed[]
+  encounters     Encounter[]
+}
+
+model Bed {
+  id         String      @id @default(uuid())
+  wardId     String
+  bedNumber  String
+  status     String      @default("AVAILABLE") // "AVAILABLE", "OCCUPIED", "CLEANING", "MAINTENANCE"
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  ward       Ward        @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  encounters Encounter[]
+
+  @@unique([wardId, bedNumber])
+}
+
+model Encounter {
+  id                   String             @id @default(uuid())
+  encounterNumber      String             @unique
+  patientId            String
+  encounterType        String             @default("INPATIENT") // "INPATIENT", "OUTPATIENT", "EMERGENCY"
+  status               String             @default("ACTIVE")    // "ACTIVE", "DISCHARGED", "TRANSFERRED"
+  attendingDoctorId    String
+  primaryNurseId       String?
+  currentWardId        String?
+  currentBedId         String?
+  admissionDate        DateTime           @default(now())
+  dischargeDate        DateTime?
+  totalRoomChargesCents Int               @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  patient              Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  ward                 Ward?              @relation(fields: [currentWardId], references: [id])
+  bed                  Bed?               @relation(fields: [currentBedId], references: [id])
+  vitals               VitalSign[]
+  notes                ClinicalNote[]
+  labOrders            LabOrder[]
+  breakGlassAccesses   BreakGlassAccess[]
+}
+
+model VitalSign {
+  id                 String    @id @default(uuid())
+  encounterId        String
+  recordedById       String
+  heartRateBpm       Int
+  systolicBp         Int
+  diastolicBp        Int
+  respiratoryRateBpm Int
+  temperatureCelsius Float
+  spo2Percent        Int
+  isAbnormal         Boolean   @default(false)
+  alertLevel         String    @default("NORMAL") // "NORMAL", "WARNING", "CRITICAL"
+  recordedAt         DateTime  @default(now())
+
+  encounter          Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+}
+
+model ClinicalNote {
+  id           String        @id @default(uuid())
+  encounterId  String
+  authorId     String
+  noteType     String        @default("SOAP_PROGRESS") // "SOAP_PROGRESS", "DISCHARGE_SUMMARY", "CONSULT"
+  subjective   String
+  objective    String
+  assessment   String
+  plan         String
+  isSigned     Boolean       @default(false)
+  signedAt     DateTime?
+  signedById   String?
+  parentNoteId String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  encounter    Encounter     @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  parentNote   ClinicalNote? @relation("NoteAddenda", fields: [parentNoteId], references: [id])
+  addenda      ClinicalNote[] @relation("NoteAddenda")
+}
+
+model LabOrder {
+  id           String     @id @default(uuid())
+  encounterId  String
+  testCode     String     // e.g. "CBC", "BMP", "TROPONIN"
+  testName     String
+  status       String     @default("ORDERED") // "ORDERED", "COLLECTED", "RESULT_PENDING_VERIFICATION", "VERIFIED_AND_RELEASED", "CANCELLED"
+  orderedById  String
+  orderedAt    DateTime   @default(now())
+  collectedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  encounter    Encounter  @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  result       LabResult?
+}
+
+model LabResult {
+  id             String    @id @default(uuid())
+  labOrderId     String    @unique
+  numericValue   Float
+  unit           String
+  referenceRange String
+  isAbnormal     Boolean   @default(false)
+  criticalFlag   Boolean   @default(false)
+  enteredById    String
+  enteredAt      DateTime  @default(now())
+  verifiedById   String?
+  verifiedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  labOrder       LabOrder  @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+}
+
+model BreakGlassAccess {
+  id                  String    @id @default(uuid())
+  encounterId         String
+  clinicianId         String
+  justificationReason String
+  accessedAt          DateTime  @default(now())
+  expiresAt           DateTime
+
+  encounter           Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  action       String
+  entityType   String
+  entityId     String
+  actorId      String
+  detailsJson  String
+  previousHash String
+  currentHash  String
+  createdAt    DateTime @default(now())
+}

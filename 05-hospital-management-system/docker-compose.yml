@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  carewell-hospital-postgres:
+    image: postgres:16-alpine
+    container_name: carewell-hospital-postgres
+    environment:
+      POSTGRES_USER: hospital_user
+      POSTGRES_PASSWORD: hospital_secure_pass
+      POSTGRES_DB: carewell_hospital_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - hospital-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hospital_user -d carewell_hospital_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  carewell-hospital-redis:
+    image: redis:7-alpine
+    container_name: carewell-hospital-redis
+    ports:
+      - "6385:6379"
+    volumes:
+      - hospital-redisdata:/data
+
+volumes:
+  hospital-pgdata:
+  hospital-redisdata:
