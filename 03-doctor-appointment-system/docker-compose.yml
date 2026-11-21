@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  appointments-postgres:
+    image: postgres:16-alpine
+    container_name: carewell-appointments-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: appointments_user
+      POSTGRES_PASSWORD: appointments_secure_pass_2026
+      POSTGRES_DB: carewell_appointments_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - appointments_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appointments_user -d carewell_appointments_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  appointments-redis:
+    image: redis:7-alpine
+    container_name: carewell-appointments-redis
+    restart: unless-stopped
+    ports:
+      - "6383:6379"
+    volumes:
+      - appointments_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  appointments_pg_data:
+  appointments_redis_data:
