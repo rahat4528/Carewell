@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  fitness-postgres:
+    image: postgres:16-alpine
+    container_name: carewell-fitness-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fitness_user
+      POSTGRES_PASSWORD: fitness_secure_pass_2026
+      POSTGRES_DB: carewell_fitness_db
+    ports:
+      - "5431:5432"
+    volumes:
+      - fitness_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitness_user -d carewell_fitness_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fitness-redis:
+    image: redis:7-alpine
+    container_name: carewell-fitness-redis
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    volumes:
+      - fitness_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  fitness_pg_data:
+  fitness_redis_data:

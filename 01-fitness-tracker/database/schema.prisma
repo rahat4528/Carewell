@@ -1,0 +1,211 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  passwordHash     String
+  name             String
+  role             String            @default("USER")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  profile          FitnessProfile?
+  customExercises  Exercise[]        @relation("UserCustomExercises")
+  workoutPlans     WorkoutPlan[]
+  workoutSessions  WorkoutSession[]
+  personalRecords  PersonalRecord[]
+  activityRecords  ActivityRecord[]
+  measurements     BodyMeasurement[]
+  fitnessGoals     FitnessGoal[]
+  deviceIntegrations DeviceIntegration[]
+  scheduledWorkouts ScheduledWorkout[]
+  auditLogs        AuditLog[]
+}
+
+model FitnessProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitSystem     String   @default("METRIC") // METRIC or IMPERIAL
+  heightCm       Float?
+  weightKg       Float?
+  biologicalSex  String?  // MALE, FEMALE, OTHER
+  birthDate      DateTime?
+  updatedAt      DateTime @updatedAt
+}
+
+model Exercise {
+  id            String   @id @default(uuid())
+  name          String
+  category      String   // STRENGTH, CARDIO, FLEXIBILITY, CALISTHENICS, OLYMPIC
+  primaryMuscle String   // CHEST, BACK, LEGS_QUADRICEPS, LEGS_HAMSTRINGS, SHOULDERS, BICEPS, TRICEPS, CORE, CALVES, FULL_BODY
+  equipment     String   // BARBELL, DUMBBELL, CABLE, MACHINE, BODYWEIGHT, KETTLEBELL, BANDS
+  instructions  String?
+  isCustom      Boolean  @default(false)
+  ownerId       String?
+  owner         User?    @relation("UserCustomExercises", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  workoutExercises WorkoutExercise[]
+  personalRecords  PersonalRecord[]
+}
+
+model WorkoutPlan {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions    WorkoutSession[]
+  scheduled   ScheduledWorkout[]
+}
+
+model WorkoutSession {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId         String?
+  plan           WorkoutPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  name           String
+  status         String   @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, SKIPPED
+  startedAt      DateTime?
+  completedAt    DateTime?
+  durationSeconds Int     @default(0)
+  totalVolumeKg  Float    @default(0.0)
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  exercises      WorkoutExercise[]
+}
+
+model WorkoutExercise {
+  id          String         @id @default(uuid())
+  sessionId   String
+  session     WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId  String
+  exercise    Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  orderIndex  Int            @default(0)
+  notes       String?
+
+  sets        WorkoutSet[]
+}
+
+model WorkoutSet {
+  id                String          @id @default(uuid())
+  workoutExerciseId String
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  setNumber         Int
+  setType           String          @default("NORMAL") // WARMUP, NORMAL, DROPSET, FAILURE
+  weightKg          Float           @default(0.0)
+  reps              Int             @default(0)
+  rpe               Float?
+  completed         Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+}
+
+model PersonalRecord {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId   String
+  exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  recordType   String   // HEAVIEST_WEIGHT, MAX_REPS, MAX_1RM, MAX_VOLUME
+  value        Float
+  estimated1Rm Float?
+  achievedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, exerciseId, recordType])
+}
+
+model ActivityRecord {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date              String   // YYYY-MM-DD
+  steps             Int      @default(0)
+  distanceMeters    Float    @default(0.0)
+  durationSeconds   Int      @default(0)
+  estimatedCalories Float    @default(0.0)
+  source            String   @default("MANUAL") // MANUAL, DEVICE
+  nature            String   @default("ESTIMATED") // MEASURED, ESTIMATED
+  externalId        String?
+  createdAt         DateTime @default(now())
+
+  @@unique([userId, date, source])
+}
+
+model BodyMeasurement {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String   // YYYY-MM-DD
+  metricType String   // WEIGHT_KG, WAIST_CM, CHEST_CM, HIPS_CM, BICEPS_CM, THIGHS_CM, CALVES_CM, NECK_CM
+  value      Float
+  source     String   @default("MANUAL") // MANUAL, DEVICE
+  nature     String   @default("MEASURED")
+  createdAt  DateTime @default(now())
+}
+
+model FitnessGoal {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metricType  String   // WEIGHT, WORKOUT_FREQUENCY, STEP_COUNT, BENCH_1RM, SQUAT_1RM
+  targetValue Float
+  startValue  Float
+  startDate   DateTime @default(now())
+  targetDate  DateTime?
+  status      String   @default("IN_PROGRESS") // IN_PROGRESS, ACHIEVED, EXPIRED, ABANDONED
+  createdAt   DateTime @default(now())
+}
+
+model DeviceIntegration {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String    // FIXTURE_TRACKER, WEARABLE_SYNC
+  encryptedToken String
+  iv             String
+  authTag        String
+  status         String    @default("ACTIVE") // ACTIVE, REVOKED
+  lastSyncAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([userId, provider])
+}
+
+model ScheduledWorkout {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId        String
+  plan          WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  scheduledDate String      // YYYY-MM-DD
+  status        String      @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, MISSED, SKIPPED
+  recurrence    String      @default("NONE") // NONE, WEEKLY
+  createdAt     DateTime    @default(now())
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action       String   // LOGIN, DATA_EXPORT, ACCOUNT_DELETION, TOKEN_REVOCATION
+  resource     String
+  details      String?
+  ipAddress    String?
+  timestamp    DateTime @default(now())
+  previousHash String?
+  hash         String
+}
