@@ -9,3 +9,15 @@ Directory of the five standalone healthcare and health-technology systems in thi
 | `03-doctor-appointment-system` | Doctor Appointment System | Doctor discovery, scheduling engine, double-booking prevention | `carewell_appointments_db` | Backend: `4003`<br>Frontend: `3003`<br>Postgres: `5433` | **Completed** |
 | `04-pharmacy-management-system` | Pharmacy Management System | FEFO batch inventory, POS, controlled substance logging | `carewell_pharmacy_db` | Backend: `4004`<br>Frontend: `3004`<br>Postgres: `5434` | **Completed** |
 | `05-hospital-management-system` | Hospital Management System | Inpatient/outpatient EHR, bed boards, lab orders & billing | `carewell_hospital_db` | Backend: `4005`<br>Frontend: `3005`<br>Postgres: `5435` | **Completed** |
+
+---
+
+### Supporting Documentation
+- [Repository Overview](repository-overview.md)
+- [Architecture & Isolation](architecture.md)
+- [Technology Stack](technology-stack.md)
+- [Development Guide](development-guide.md)
+- [Health Data Protection & Privacy](health-data-protection.md)
+- [Final Delivery Report](final-delivery-report.md)
+- [Verified Build Prompts](verified-prompts.md)
+
