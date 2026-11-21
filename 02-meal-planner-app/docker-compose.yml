@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  meal-planner-postgres:
+    image: postgres:16-alpine
+    container_name: carewell-meal-planner-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: meal_user
+      POSTGRES_PASSWORD: meal_secure_pass_2026
+      POSTGRES_DB: carewell_meal_planner_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - meal_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meal_user -d carewell_meal_planner_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  meal-planner-redis:
+    image: redis:7-alpine
+    container_name: carewell-meal-planner-redis
+    restart: unless-stopped
+    ports:
+      - "6382:6379"
+    volumes:
+      - meal_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  meal_pg_data:
+  meal_redis_data:
